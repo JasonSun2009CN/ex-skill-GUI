@@ -1,139 +1,76 @@
 # ex-skill
 
-> 语言 / Language：[中文版](README.zh.md)
+> Language / 语言: [中文版](README.zh.md)
 
-A self-contained suite of AI skills that analyzes a user's past relationship evidence and produces an
-imitation companion that reproduces the ex-partner's personality, tone, and speaking style.
+A local desktop application that turns relationship conversation evidence into a personality profile and a reusable imitation skill.
 
-## What it does
+## Features
 
-The pipeline has three stages:
+- Import `.txt`, `.md`, or `.log` conversation files from the desktop GUI.
+- Label the user and the analysis subject, then preview parsed turns.
+- Supports OrcaRouter, OpenRouter, OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, GLM, Groq, Mistral, Together, SiliconFlow, and custom OpenAI-compatible services.
+- Supports ex-partners, partners, dating subjects, friends, specific family relationships, colleagues, and custom relationships. Relationship boundaries are included in analysis and chat prompts.
+- Validate the generated profile and create a self-contained imitation skill.
+- Chat with the generated skill while keeping evidence and generated files on the local filesystem.
 
-```
-evidence (chat logs, documents, images)
-        │
-        ▼
-personality-analysis-skill  ──►  <subject>_personality_profile.md
-        │
-        ▼
-imitation-skill-generator  ──►  imitation-<alias>/  (a ready-to-use imitation skill)
-        │
-        ▼
-imitation skill  ──►  messages in the subject's voice
-```
+## Requirements
 
-1. **Analyze** — `personality-analysis-skill` reads uploaded chat logs, documents, and images about an
-   ex-partner and produces a single, machine-readable Markdown profile.
-2. **Generate** — `imitation-skill-generator` reads that profile and generates a complete, production-ready
-   imitation skill.
-3. **Imitate** — the generated imitation skill replicates the subject's tone, rhythm, vocabulary, emotional
-   style, and memory.
+- Python 3.10 or newer
+- macOS, Linux, or Windows
+- An API key for one of the supported providers
 
-## Skills
-
-| Skill | Purpose | Input | Output |
-|-------|---------|-------|--------|
-| `personality-analysis-skill` | Deep analysis of a former partner's personality, emotions, mentality, and speech | Chat logs, `.txt`/`.pdf`/`.docx`, images, chat exports | A single `<subject>_personality_profile.md` |
-| `imitation-skill-generator` | Turns a personality profile into a working imitation skill | A personality profile `.md` | `imitation-<alias>/` skill directory |
-| `imitation-skill` | Pre-built imitation skill for the demo subject | A conversation prompt | Messages in the subject's voice |
-
-### personality-analysis-skill
-
-- Parses and normalizes chat transcripts, OCRs images, and extracts document text.
-- Separates the subject's voice from the user's voice.
-- Scores personality, emotional, mentality, and linguistic dimensions using a bundled rubric.
-- Reconstructs significant memory moments and event-level emotions.
-- Emits one profile that follows `templates/personality_profile.template.md` exactly, with a
-  machine-readable JSON contract.
-
-### imitation-skill-generator
-
-- Validates the input profile schema.
-- Extracts identity, top traits, tones, signature phrases, and simulation guidance.
-- Fills a bundled template and bundles the profile as the single source of truth.
-- Emits a validated, self-contained imitation skill under `.trae/skills/`.
-
-## Directory layout
-
-```
-ex-skill/
-├── .trae/
-│   └── skills/                        # registered skills (framework location)
-│       ├── personality-analysis-skill/
-│       ├── imitation-skill-generator/
-│       ├── imitation-skill/
-│       └── imitation-joanna/
-├── evidence_list/                     # raw private evidence (local only)
-├── personality_analysis_skill/        # authoring copy of the analysis skill
-├── imitation_skill/                   # authoring copy of the imitation skill
-└── skill_prompts/                     # original prompt requests
-```
-
-Each registered skill contains a `SKILL.md` (frontmatter + instructions) plus any bundled resources it
-needs (`references/`, `templates/`). Skills are self-contained: they carry their own schemas, rubrics, and
-templates, and do not depend on network access, databases, or files outside their own directory.
-
-## How to build / set up
-
-There is no compilation step — these are declarative Markdown skills loaded by the skill framework.
-
-1. Clone this repository.
-2. Place each skill directory under the framework's skill location: `.trae/skills/<skill-name>/`.
-   Each directory must contain a `SKILL.md` with a valid `name` and `description` frontmatter.
-3. Keep the bundled resources co-located with each skill (for example
-   `personality-analysis-skill/references/analysis_rubric.md` and
-   `personality-analysis-skill/templates/personality_profile.template.md`).
-4. Verify the structure: every `SKILL.md` must have `name`, `description` (under 200 characters,
-   stating what it does and when to invoke it), and only reference files inside its own directory.
-
-A skill is valid when it matches the `skill-creator` layout:
-
-```
-.trae/skills/<skill-name>/
-├── SKILL.md
-└── <bundled resources>
-```
-
-## Usage
-
-1. Provide relationship materials (chat logs, documents, images) and invoke `personality-analysis-skill`
-   to produce a profile.
-2. Provide that profile to `imitation-skill-generator` to produce an `imitation-<alias>` skill.
-3. Invoke the generated imitation skill with a conversation prompt to receive messages in the subject's
-   voice.
-
-## Local desktop GUI
-
-The repository also includes a small Python + PySide6 desktop app. It runs locally without a browser or
-frontend build step. Put evidence files in `evidence/`; generated profiles and imitation skills are written
-under `generated/`.
-
-Start it with:
+Install dependencies with:
 
 ```bash
-./run.sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-On Windows, run `run.bat`. The script creates `.venv`, installs `requirements.txt`, and launches the app.
-You can also run `python3 app/main.py` after installing the dependencies.
+On Windows, activate the environment with `.venv\Scripts\activate`.
 
-The GUI workflow is: configure an OpenAI, Anthropic, or Gemini provider in Settings; add and label a chat
-record in Evidence; generate a profile and imitation skill in Analysis; then load that skill in Imitation
-Chat. API calls use the provider configuration you save, while evidence and generated artifacts remain on
-the local filesystem.
+## Run
 
-## Privacy & security
+```bash
+python3 launch.py
+```
 
-- The analysis and generation run entirely locally. No profile or generated skill is uploaded or published.
-- Raw evidence (`evidence_list/`) and any profile containing real names or chat quotes are private and
-  should not be committed to a public repository.
-- The generic skills (`personality-analysis-skill`, `imitation-skill-generator`) contain no personal data
-  and are safe to share.
-- Use the imitation skills responsibly and only with consent; treat psychological findings as hypotheses,
-  not diagnoses.
+## GUI workflow
+
+1. Open **Settings** and choose a provider, API key, base URL, and model. OrcaRouter is listed first; enter its API URL according to its account documentation.
+2. Open **Evidence**, add a conversation file, and enter the user and subject aliases.
+3. Preview and confirm the parsed evidence.
+4. In **Analysis**, generate the profile and imitation skill, or run the combined preparation flow.
+5. In **Chat**, load the generated skill and start a conversation.
+
+Configuration is stored in `~/.ex-skill/config.json` when possible. Evidence is stored in `evidence/`; generated profiles and skills are stored in `generated/`.
+
+## Repository layout
+
+```text
+app/                              Python application code
+app/core/                         Parsing, analysis, generation, validation, and LLM providers
+app/ui/                           PySide6 desktop interface
+personality-analysis-skill/       Analysis prompt, rubric, and profile template
+imitation-skill-generator/       Imitation skill template and validation report
+evidence/                         Local input evidence; ignored except for .gitkeep
+generated/                        Local profiles and skills; ignored by Git
+smoke_test.py                     Dependency-light engine smoke test
+requirements.txt                  Runtime dependencies
+launch.py                         The GUI launch script
+```
 
 ## Validation
 
-Each skill includes a `TEST_REPORT.md` documenting structural checks, schema validity, self-containment,
-and privacy checks. Re-run these checks after modifying any skill to confirm it still loads and runs
-standalone.
+Run the built-in smoke test and syntax check:
+
+```bash
+python3 smoke_test.py
+python3 -m compileall -q app smoke_test.py
+```
+
+The smoke test covers transcript parsing, profile validation, subject snapshot extraction, and imitation skill generation.
+
+## Privacy
+
+The GUI writes evidence and generated artifacts locally, but calls the provider configured in **Settings** when analysis or chat is requested. Do not commit private evidence, generated profiles, API keys, or other sensitive data. Use imitation features only with appropriate consent, and treat personality analysis as an interpretation rather than a diagnosis.

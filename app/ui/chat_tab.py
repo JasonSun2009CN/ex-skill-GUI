@@ -6,9 +6,9 @@ from typing import Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget,
-    QListWidgetItem, QComboBox, QLineEdit, QMessageBox, QFrame,
+    QListWidgetItem, QComboBox, QLineEdit, QMessageBox,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize
+from PySide6.QtCore import QThread, Signal, QObject, QSize
 from PySide6.QtGui import QFont
 
 from app.core.config import load_config

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from .llm.types import LLMProvider, ChatMessage, ChatParams
+from .relationships import get_relationship_guidance
 
 
 def _read_text(p: Path) -> str:
@@ -35,6 +36,10 @@ class ImitationChatSession:
         skill_md = _read_text(self.skill_dir / "SKILL.md")
         alias = _extract_alias_from_skill_dir(self.skill_dir)
         profile_md = _read_text(self.skill_dir / "references" / f"{alias}_personality_profile.md")
+        role = "other"
+        role_match = re.search(r'^subject_role:\s*["\']?([^"\'\n]+)', profile_md, re.MULTILINE)
+        if role_match:
+            role = role_match.group(1).strip()
 
         self.system_prompt = (
             "# Role & Instructions (use as system prompt)\n\n"
@@ -44,6 +49,7 @@ class ImitationChatSession:
             + "\n\n---\n"
             + "## Runtime Rules\n"
             + f"- 你现在就是 **{alias}** 本人，用第一人称回复。\n"
+            + f"- 关系边界：{get_relationship_guidance(role)}\n"
             + "- 回复必须严格符合上面 profile 中描述的说话方式、语气、句长、emoji 习惯、口头禅。\n"
             + "- 不要输出任何角色外的解释、元评论、括号内说明；只输出你（对方）说的话。\n"
             + "- 不要在回复里重复用户的话；像真人聊天一样自然接上。\n"

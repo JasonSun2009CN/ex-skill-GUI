@@ -3,7 +3,7 @@
 schema_version: "1.0"
 profile_type: "personality-speech-analysis"
 subject_alias: "<alias>"
-subject_role: "ex-partner"
+subject_role: "other"
 generated_at: "<ISO-8601 timestamp>"
 source_files:
   - "<filename>"

@@ -4,7 +4,19 @@ from .anthropic_provider import AnthropicProvider
 from .gemini_provider import GeminiProvider
 
 _REGISTRY: dict[str, type[LLMProvider]] = {
+    # OpenAI-compatible providers share the same transport implementation.
     "openai": OpenAIProvider,
+    "orcarouter": OpenAIProvider,
+    "openrouter": OpenAIProvider,
+    "deepseek": OpenAIProvider,
+    "qwen": OpenAIProvider,
+    "moonshot": OpenAIProvider,
+    "zhipu": OpenAIProvider,
+    "groq": OpenAIProvider,
+    "mistral": OpenAIProvider,
+    "together": OpenAIProvider,
+    "siliconflow": OpenAIProvider,
+    "custom-openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "gemini": GeminiProvider,
 }

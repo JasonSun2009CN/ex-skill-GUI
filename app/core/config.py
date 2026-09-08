@@ -1,7 +1,6 @@
 import json
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from typing import Optional
-from pathlib import Path
 
 from .paths import CONFIG_PATH
 

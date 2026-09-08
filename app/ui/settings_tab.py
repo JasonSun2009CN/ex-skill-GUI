@@ -5,10 +5,21 @@ from app.core.llm.registry import list_providers, get_provider
 from app.core.llm.types import ChatMessage, ChatParams
 
 
-_DEFAULT_MODELS = {
-    "openai": "gpt-4o-mini",
-    "anthropic": "claude-3-haiku-20240307",
-    "gemini": "gemini-1.5-flash-latest",
+PROVIDER_OPTIONS = {
+    "orcarouter": ("OrcaRouter", "", ""),
+    "openrouter": ("OpenRouter", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
+    "openai": ("OpenAI", "https://api.openai.com/v1", "gpt-4o-mini"),
+    "anthropic": ("Anthropic", "https://api.anthropic.com", "claude-3-5-haiku-latest"),
+    "gemini": ("Google Gemini", "https://generativelanguage.googleapis.com", "gemini-2.5-flash"),
+    "deepseek": ("DeepSeek", "https://api.deepseek.com", "deepseek-chat"),
+    "qwen": ("阿里云百炼 / Qwen", "", "qwen-plus"),
+    "moonshot": ("Moonshot / Kimi", "https://api.moonshot.cn/v1", "kimi-k2"),
+    "zhipu": ("智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
+    "groq": ("Groq", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+    "mistral": ("Mistral AI", "https://api.mistral.ai/v1", "mistral-small-latest"),
+    "together": ("Together AI", "https://api.together.xyz/v1", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+    "siliconflow": ("硅基流动", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V3"),
+    "custom-openai": ("其他 OpenAI 兼容服务", "", ""),
 }
 
 
@@ -33,7 +44,9 @@ class SettingsTab(QWidget):
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("服务商:"), 0)
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(list_providers())
+        for provider_id in PROVIDER_OPTIONS:
+            label = PROVIDER_OPTIONS.get(provider_id, (provider_id, "", ""))[0]
+            self.provider_combo.addItem(label, provider_id)
         self.provider_combo.currentIndexChanged.connect(self._on_provider_change)
         row1.addWidget(self.provider_combo, 1)
         form.addLayout(row1)
@@ -80,27 +93,36 @@ class SettingsTab(QWidget):
         layout.addStretch(1)
 
     def _on_provider_change(self, _idx: int):
-        provider = self.provider_combo.currentText()
-        default = _DEFAULT_MODELS.get(provider, "")
-        if default and not self.model_edit.text().strip():
-            self.model_edit.setText(default)
+        provider_id = self.provider_combo.currentData()
+        _, base_url, model = PROVIDER_OPTIONS.get(provider_id, (provider_id, "", ""))
+        if not self.base_url_edit.text().strip() or self.base_url_edit.property("autoBaseUrl"):
+            self.base_url_edit.setText(base_url)
+            self.base_url_edit.setProperty("autoBaseUrl", bool(base_url))
+        if not self.model_edit.text().strip() or self.model_edit.property("autoModel"):
+            self.model_edit.setText(model)
+            self.model_edit.setProperty("autoModel", bool(model))
 
     def _collect(self) -> AppConfig:
         return AppConfig(
-            provider=self.provider_combo.currentText(),
+            provider=self.provider_combo.currentData() or "openai",
             api_key=self.key_edit.text().strip(),
             base_url=self.base_url_edit.text().strip(),
-            model=self.model_edit.text().strip() or _DEFAULT_MODELS.get(self.provider_combo.currentText(), ""),
+            model=self.model_edit.text().strip(),
         )
 
     def _load(self):
         cfg = load_config()
-        idx = self.provider_combo.findText(cfg.provider)
+        idx = self.provider_combo.findData(cfg.provider)
         if idx >= 0:
             self.provider_combo.setCurrentIndex(idx)
         self.key_edit.setText(cfg.api_key)
         self.base_url_edit.setText(cfg.base_url)
-        self.model_edit.setText(cfg.model or _DEFAULT_MODELS.get(cfg.provider, ""))
+        default_base = PROVIDER_OPTIONS.get(cfg.provider, (cfg.provider, "", ""))[1]
+        default_model = PROVIDER_OPTIONS.get(cfg.provider, (cfg.provider, "", ""))[2]
+        self.base_url_edit.setText(cfg.base_url or default_base)
+        self.model_edit.setText(cfg.model or default_model)
+        self.base_url_edit.setProperty("autoBaseUrl", not bool(cfg.base_url))
+        self.model_edit.setProperty("autoModel", not bool(cfg.model))
 
     def _on_save(self):
         cfg = self._collect()
@@ -117,7 +139,7 @@ class SettingsTab(QWidget):
         try:
             provider = get_provider(cfg.provider)
             base_url = cfg.base_url or None
-            model = cfg.model or _DEFAULT_MODELS.get(cfg.provider) or None
+            model = cfg.model or PROVIDER_OPTIONS.get(cfg.provider, ("", "", ""))[2] or None
             reply = provider.chat(ChatParams(
                 api_key=cfg.api_key,
                 base_url=base_url,

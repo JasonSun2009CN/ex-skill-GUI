@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QPlainTextEdit,
     QComboBox, QGroupBox, QMessageBox, QFileDialog,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QObject
+from PySide6.QtCore import QThread, Signal, QObject
 
 from app.core.config import load_config
 from app.core.llm.registry import get_provider

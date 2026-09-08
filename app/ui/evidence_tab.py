@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, Signal
 
 from app.core.paths import EVIDENCE_DIR
 from app.core.evidence_parser import parse_file, label_turns, EvidenceSetup
+from app.core.relationships import RELATIONSHIP_OPTIONS
 
 
 class EvidenceTab(QWidget):
@@ -63,7 +64,8 @@ class EvidenceTab(QWidget):
         self.subject_edit = QLineEdit()
         self.subject_edit.setPlaceholderText("分析对象的别名，例如: Joanna / 前任")
         self.role_combo = QComboBox()
-        self.role_combo.addItems(["ex-partner", "partner", "friend", "family", "colleague", "other"])
+        for role_id, label in RELATIONSHIP_OPTIONS:
+            self.role_combo.addItem(label, role_id)
         self.parse_btn = QPushButton("预览解析结果")
         self.parse_btn.clicked.connect(self._on_parse)
         form.addRow("用户别名:", self.user_edit)
@@ -128,7 +130,6 @@ class EvidenceTab(QWidget):
         if not items:
             return
         name = items[0].data(Qt.UserRole)
-        p = Path(name).name
         stem = Path(name).stem
         if not self.subject_edit.text().strip():
             self.subject_edit.setText(stem)
@@ -158,13 +159,17 @@ class EvidenceTab(QWidget):
         for t in labeled[:10]:
             c = t.content.replace("\n", " / ")[:80]
             preview_lines.append(f"{t.speaker:8s}  {t.timestamp or '':8s}  {c}")
-        preview_lines.append(f"\n... 共 {len(labeled)} 条 turn，labeled user={labeled.count('user') if False else sum(1 for t in labeled if t.speaker=='user')} subject={sum(1 for t in labeled if t.speaker=='subject')}")
+        user_count = sum(1 for t in labeled if t.speaker == "user")
+        subject_count = sum(1 for t in labeled if t.speaker == "subject")
+        preview_lines.append(
+            f"\n... 共 {len(labeled)} 条 turn，labeled user={user_count} subject={subject_count}"
+        )
         self.preview.setPlainText("\n".join(preview_lines))
         self._last_setup = EvidenceSetup(
             file_path=path,
             user_alias=user_alias,
             subject_alias=subject_alias,
-            subject_role=self.role_combo.currentText(),
+            subject_role=self.role_combo.currentData() or "other",
             turns=labeled,
         )
         self.confirm_btn.setEnabled(True)

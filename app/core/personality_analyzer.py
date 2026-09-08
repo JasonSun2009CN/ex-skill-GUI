@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from .llm.types import LLMProvider, ChatMessage, ChatParams
 from .evidence_parser import ChatTurn, format_for_llm
 from .validators.profile_validator import validate_profile, ValidationError
 from .paths import PROFILES_DIR, SKILL_TEMPLATES_DIR
+from .relationships import get_relationship_guidance
 
 
 @dataclass
@@ -18,8 +20,7 @@ class LLMCallConfig:
     base_url: Optional[str] = None
 
 
-import re as _re
-_GITHUB_ATTACH_RE = _re.compile(r'^\s*\[[^\]]+\]\(https?://github\.com/[^)]+\)\s*$')
+_GITHUB_ATTACH_RE = re.compile(r'^\s*\[[^\]]+\]\(https?://github\.com/[^)]+\)\s*$')
 
 def _read_text(p: Path) -> str:
     if not p.exists():
@@ -80,6 +81,7 @@ class PersonalityAnalyzer:
         user_prompt = (
             f"subject_alias={subject_alias}\n"
             f"subject_role={subject_role}\n"
+            f"relationship_boundary={get_relationship_guidance(subject_role)}\n"
             f"generated_at={now}\n"
             f"source_files={', '.join(sf) if sf else '(inline)'}\n\n"
             f"## 聊天记录 / 证据材料\n\n"
