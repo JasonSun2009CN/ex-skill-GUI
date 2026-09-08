@@ -1,37 +1,33 @@
+from __future__ import annotations
+
+import os
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-EVIDENCE_DIR = PROJECT_ROOT / "evidence"
-GENERATED_DIR = PROJECT_ROOT / "generated"
-PROFILES_DIR = GENERATED_DIR / "profiles"
-SKILLS_DIR = GENERATED_DIR / "skills"
+def data_root() -> Path:
+    """数据根目录：默认 ~/.ex-skill，可用环境变量 EX_SKILL_DATA_DIR 覆盖（测试/便携模式）。
 
-SKILL_TEMPLATES_DIR = PROJECT_ROOT / "personality-analysis-skill"
-IMITATION_TEMPLATES_DIR = PROJECT_ROOT / "imitation-skill-generator"
+    所有聊天证据、画像与聊天历史都保存在仓库之外，避免误提交。
+    """
+    env = os.environ.get("EX_SKILL_DATA_DIR")
+    if env:
+        return Path(env).expanduser()
+    return Path.home() / ".ex-skill"
 
-def get_config_dir() -> Path:
-    candidates = [
-        Path.home() / ".ex-skill",
-        PROJECT_ROOT / ".local_config",
-    ]
-    import tempfile
-    for c in candidates:
-        try:
-            c.mkdir(parents=True, exist_ok=True)
-            probe = c / ".write_test"
-            probe.write_text("ok")
-            probe.unlink()
-            return c
-        except Exception:
-            continue
-    fallback = Path(tempfile.mkdtemp(prefix="ex-skill-config-"))
-    return fallback
 
-CONFIG_PATH = get_config_dir() / "config.json"
-
-for d in [EVIDENCE_DIR, GENERATED_DIR, PROFILES_DIR, SKILLS_DIR]:
-    try:
+def ensure_layout() -> None:
+    """创建数据目录结构。只在启动与写入路径时调用，不在 import 时产生副作用。"""
+    for d in (data_root(), data_root() / "roles"):
         d.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
+
+
+def config_path() -> Path:
+    return data_root() / "config.json"
+
+
+def roles_json_path() -> Path:
+    return data_root() / "roles.json"
+
+
+def role_dir(role_id: str) -> Path:
+    return data_root() / "roles" / role_id
