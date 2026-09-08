@@ -102,6 +102,26 @@ A skill is valid when it matches the `skill-creator` layout:
 3. Invoke the generated imitation skill with a conversation prompt to receive messages in the subject's
    voice.
 
+## Local desktop GUI
+
+The repository also includes a small Python + PySide6 desktop app. It runs locally without a browser or
+frontend build step. Put evidence files in `evidence/`; generated profiles and imitation skills are written
+under `generated/`.
+
+Start it with:
+
+```bash
+./run.sh
+```
+
+On Windows, run `run.bat`. The script creates `.venv`, installs `requirements.txt`, and launches the app.
+You can also run `python3 app/main.py` after installing the dependencies.
+
+The GUI workflow is: configure an OpenAI, Anthropic, or Gemini provider in Settings; add and label a chat
+record in Evidence; generate a profile and imitation skill in Analysis; then load that skill in Imitation
+Chat. API calls use the provider configuration you save, while evidence and generated artifacts remain on
+the local filesystem.
+
 ## Privacy & security
 
 - The analysis and generation run entirely locally. No profile or generated skill is uploaded or published.

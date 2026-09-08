@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+.local_config/
+
+# Local evidence and generated personal data
+evidence/*
+!evidence/.gitkeep
+generated/profiles/*
+generated/skills/*

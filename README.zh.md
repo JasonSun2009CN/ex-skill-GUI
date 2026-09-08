@@ -95,6 +95,27 @@ ex-skill/
 2. 将该画像交给 `imitation-skill-generator`，生成一个 `imitation-<alias>` 技能。
 3. 用一段对话提示调用生成的模仿技能，即可得到以该对象口吻输出的消息。
 
+## 本地桌面 GUI
+
+项目现在也提供一个基于 Python + PySide6 的本地桌面应用。它不需要浏览器或前端构建工具，聊天记录保存在 `evidence/`，画像和生成的技能保存在 `generated/`。
+
+### 启动
+
+```bash
+./run.sh
+```
+
+Windows 可运行 `run.bat`。脚本会创建 `.venv`、安装 `requirements.txt` 中的依赖，然后启动应用；也可以手动执行 `python3 app/main.py`。
+
+### GUI 工作流
+
+1. 在「设置」中选择 OpenAI、Anthropic 或 Gemini，填写 API Key、可选 Base URL 和模型名并保存。
+2. 在「证据管理」中添加聊天记录文件，填写用户和对象别名，解析并确认。
+3. 在「人格分析」中生成 `generated/profiles/<alias>_personality_profile.md`，再选择画像生成 `generated/skills/imitation-<alias>/`。
+4. 在「模仿聊天」中加载生成的 skill，输入消息并发送。
+
+GUI 的网络调用使用你在设置中配置的大模型服务；证据、画像和聊天 skill 默认只写入本地目录。
+
 ## 隐私与安全
 
 - 分析与生成全程在本地进行。任何画像或生成的技能都不会被上传或发布。
