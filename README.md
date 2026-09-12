@@ -22,11 +22,11 @@
 
 ## 安装与运行
 
-需要 Python 3.10+。
+需要 Python 3.10+；macOS 上建议使用 Python 3.11。
 
 ```bash
 cd ex-skill-GUI
-python3 -m venv .venv
+/usr/local/bin/python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python launch.py
