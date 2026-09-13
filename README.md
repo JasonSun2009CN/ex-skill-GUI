@@ -47,7 +47,7 @@ python launch.py
 
 | 形态 | 说明 | 举例 |
 |---|---|---|
-| OpenAI 兼容 | 填 Base URL + 模型名 | DeepSeek、阿里云百炼 Qwen、智谱 GLM、OpenRouter、OpenAI |
+| OpenAI 兼容 | 填 Base URL + 模型名 | DeepSeek、月之暗面 Moonshot、阿里云百炼 Qwen、智谱 GLM、OpenRouter、OpenAI |
 | Anthropic | `/v1/messages` | Claude |
 
 ## 界面

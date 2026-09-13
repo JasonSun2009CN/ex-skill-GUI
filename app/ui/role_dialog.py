@@ -51,8 +51,12 @@ class RoleDialog(QDialog):
 
         # 步骤标题栏
         header = QWidget()
+        header.setObjectName("roleDialogHeader")
+        header.setAttribute(Qt.WA_StyledBackground, True)
+        # 必须带 ID 选择器：无选择器的声明会级联到子控件（见下方 footer 注释）
         header.setStyleSheet(
-            f"background: {theme.sidebar_bg}; border-bottom: 1px solid {theme.divider};"
+            f"#roleDialogHeader {{ background: {theme.sidebar_bg};"
+            f" border-bottom: 1px solid {theme.divider}; }}"
         )
         hl = QHBoxLayout(header)
         hl.setContentsMargins(20, 12, 20, 12)
@@ -71,7 +75,16 @@ class RoleDialog(QDialog):
 
         # 底部按钮
         footer = QWidget()
-        footer.setStyleSheet(f"background: {theme.window_bg}; border-top: 1px solid {theme.divider};")
+        footer.setObjectName("roleDialogFooter")
+        footer.setAttribute(Qt.WA_StyledBackground, True)
+        footer.setMinimumHeight(54)
+        # 注意：这里必须用 ID 选择器。不带选择器的声明在 Qt 中会同时作用于
+        # 子控件，会把「下一步」「创建并生成画像」的强调色背景刷成 window_bg，
+        # 而文字仍是 text_on_accent（白）→ 白底白字，按钮看起来没渲染。
+        footer.setStyleSheet(
+            f"#roleDialogFooter {{ background: {theme.window_bg};"
+            f" border-top: 1px solid {theme.divider}; }}"
+        )
         fl = QHBoxLayout(footer)
         fl.setContentsMargins(20, 12, 20, 12)
         fl.addStretch(1)
@@ -151,10 +164,8 @@ class RoleDialog(QDialog):
 
     def _update_avatar_preview(self) -> None:
         name = self.display_edit.text().strip() or self.alias_edit.text().strip() or "?"
-        self.avatar_preview.set_name(name)
-        self.avatar_preview.set_seed(name)
-        if self.pending_avatar_path:
-            self.avatar_preview.set_image_path(self.pending_avatar_path)
+        # 一次性更新，避免每击键两次 pixmap 重建
+        self.avatar_preview.set_identity(name, name)
 
     def _on_upload_avatar(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

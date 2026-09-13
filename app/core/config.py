@@ -11,6 +11,7 @@ PROVIDER_PRESETS: dict[str, tuple[str, str, str]] = {
     "OpenAI": ("openai", "https://api.openai.com/v1", "gpt-4o-mini"),
     "Anthropic Claude": ("anthropic", "https://api.anthropic.com", "claude-sonnet-5"),
     "DeepSeek": ("openai", "https://api.deepseek.com/v1", "deepseek-chat"),
+    "月之暗面 Moonshot": ("openai", "https://api.moonshot.cn/v1", "moonshot-v1-8k"),
     "阿里云百炼 Qwen": ("openai", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
     "智谱 GLM": ("openai", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
     "OpenRouter": ("openai", "https://openrouter.ai/api/v1", "anthropic/claude-sonnet-5"),

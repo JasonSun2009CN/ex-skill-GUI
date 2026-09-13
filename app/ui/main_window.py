@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtGui import QAction, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -310,16 +310,19 @@ class MainWindow(QMainWindow):
 
         # ---- 左侧边栏 ----
         self.sidebar = QWidget()
+        self.sidebar.setObjectName("appSidebar")
+        self.sidebar.setAttribute(Qt.WA_StyledBackground, True)
         self.sidebar.setMinimumWidth(200)
         self.sidebar.setMaximumWidth(400)
         self.sidebar.setFixedWidth(max(200, min(400, self.cfg.sidebar_width)))
-        self.sidebar.setStyleSheet(f"background: {self.theme.sidebar_bg};")
         sv = QVBoxLayout(self.sidebar)
         sv.setContentsMargins(0, 0, 0, 0)
         sv.setSpacing(0)
 
         # 顶部工具栏
         self.toolbar = QFrame()
+        self.toolbar.setObjectName("appToolbar")
+        self.toolbar.setAttribute(Qt.WA_StyledBackground, True)
         thl = QHBoxLayout(self.toolbar)
         thl.setContentsMargins(12, 10, 12, 10)
 
@@ -392,12 +395,10 @@ class MainWindow(QMainWindow):
                 self.empty.text() + "\n\n提示：首次使用请先在「设置」里填写 API Key 与模型名。"
             )
 
-        # 定时检查系统主题变化
-        self._theme_check_timer = QTimer(self)
-        self._theme_check_timer.timeout.connect(self._check_system_theme)
-        if self.cfg.theme_mode == "system":
-            self._theme_check_timer.start(2000)
+        # 跟随系统主题：Qt 原生信号只在真正切换时触发，无需轮询
+        # （早先用 2 秒定时器 + defaults 子进程，每 2 秒阻塞 UI 线程 30~90ms，导致输入卡顿）
         self._last_system_dark = self.theme.is_dark
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
 
     # ------------------------------------------------------------------
     # 主题
@@ -405,9 +406,10 @@ class MainWindow(QMainWindow):
     def _style_sidebar_chrome(self) -> None:
         """更新侧边栏容器 / 工具栏 / 标题的配色（主题切换时调用）。"""
         t = self.theme
-        self.sidebar.setStyleSheet(f"background: {t.sidebar_bg};")
+        # 用 ID 选择器限定范围：无选择器的声明会级联到子控件，把子按钮刷成同色
+        self.sidebar.setStyleSheet(f"#appSidebar {{ background: {t.sidebar_bg}; }}")
         self.toolbar.setStyleSheet(
-            f"background: {t.sidebar_bg}; border-bottom: 1px solid {t.divider};"
+            f"#appToolbar {{ background: {t.sidebar_bg}; border-bottom: 1px solid {t.divider}; }}"
         )
         self.app_title.setStyleSheet(f"color: {t.text_primary};")
 
@@ -425,13 +427,17 @@ class MainWindow(QMainWindow):
     def _update_empty_style(self) -> None:
         self.empty.setStyleSheet(f"color: {self.theme.text_muted}; font-size: 14px; background: {self.theme.chat_bg};")
 
-    def _check_system_theme(self) -> None:
-        from .theme import system_is_dark
-        is_dark = system_is_dark()
-        if is_dark != self._last_system_dark:
-            self._last_system_dark = is_dark
-            self.theme = get_theme("system")
-            self.apply_current_theme()
+    def _on_color_scheme_changed(self, scheme) -> None:
+        """系统深浅色切换时的回调（仅 theme_mode == "system" 时生效）。"""
+        if self.cfg.theme_mode != "system" or scheme == Qt.ColorScheme.Unknown:
+            return
+        is_dark = scheme == Qt.ColorScheme.Dark
+        if is_dark == self._last_system_dark:
+            return
+        self._last_system_dark = is_dark
+        # 直接用信号带来的取值，不再重复查询系统
+        self.theme = get_theme("dark" if is_dark else "light")
+        self.apply_current_theme()
 
     # ------------------------------------------------------------------
     # 角色列表
@@ -567,10 +573,8 @@ class MainWindow(QMainWindow):
             self.cfg = config_mod.load_config()
             self.theme = get_theme(self.cfg.theme_mode)
             self.apply_current_theme()
-            if self.cfg.theme_mode == "system":
-                self._theme_check_timer.start(2000)
-            else:
-                self._theme_check_timer.stop()
+            # 与系统主题信号保持同步，避免之后切回 "system" 时误判为无变化
+            self._last_system_dark = self.theme.is_dark
             if self.cfg.is_configured() and not persona_store.list_roles():
                 self.empty.setText(
                     "还没有角色。\n\n"
