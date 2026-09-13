@@ -47,7 +47,7 @@ python launch.py
 
 | 形态 | 说明 | 举例 |
 |---|---|---|
-| OpenAI 兼容 | 填 Base URL + 模型名 | DeepSeek、月之暗面 Moonshot、阿里云百炼 Qwen、智谱 GLM、OpenRouter、OpenAI |
+| OpenAI 兼容 | 填 Base URL + 模型名 | OpenAI、Google Gemini、xAI Grok、Mistral AI、Groq、Together AI、DeepSeek、月之暗面 Moonshot、阿里云百炼 Qwen、智谱 GLM、SiliconFlow、MiniMax、腾讯混元、OpenRouter |
 | Anthropic | `/v1/messages` | Claude |
 
 ## 界面
@@ -90,6 +90,16 @@ Joanna  23:05
 ```bash
 python smoke_test.py      # 引擎层：解析、画像结构、存储往返、假 LLM 的生成/聊天
 ```
+
+## GitHub Actions 打包
+
+推送到 `main`、手动运行 workflow，或推送形如 `v1.0.0` 的 tag 后，GitHub Actions
+会在 macOS、Windows、Linux 上自动构建 PyInstaller 包。构建完成后可在 Actions
+运行记录的 **Artifacts** 下载；推送版本 tag 时，还会自动创建 GitHub Release 并
+附加三个平台的压缩包。
+
+打包入口使用 `app/main.py`，不会把开发环境的 `.venv` 或本机的 `~/.ex-skill`
+数据带进安装包。首次启动后，配置和聊天数据仍保存在用户目录。
 
 ## 目录结构
 

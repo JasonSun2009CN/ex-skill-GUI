@@ -10,10 +10,18 @@ from .paths import config_path
 PROVIDER_PRESETS: dict[str, tuple[str, str, str]] = {
     "OpenAI": ("openai", "https://api.openai.com/v1", "gpt-4o-mini"),
     "Anthropic Claude": ("anthropic", "https://api.anthropic.com", "claude-sonnet-5"),
+    "Google Gemini": ("openai", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
+    "xAI Grok": ("openai", "https://api.x.ai/v1", "grok-3-mini"),
+    "Mistral AI": ("openai", "https://api.mistral.ai/v1", "mistral-small-latest"),
+    "Groq": ("openai", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+    "Together AI": ("openai", "https://api.together.xyz/v1", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
     "DeepSeek": ("openai", "https://api.deepseek.com/v1", "deepseek-chat"),
     "月之暗面 Moonshot": ("openai", "https://api.moonshot.cn/v1", "moonshot-v1-8k"),
     "阿里云百炼 Qwen": ("openai", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
     "智谱 GLM": ("openai", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
+    "SiliconFlow": ("openai", "https://api.siliconflow.cn/v1", "deepseek-ai/DeepSeek-V3"),
+    "MiniMax": ("openai", "https://api.minimaxi.com/v1", "MiniMax-M2.5"),
+    "腾讯混元": ("openai", "https://api.hunyuan.cloud.tencent.com/v1", "hunyuan-turbo"),
     "OpenRouter": ("openai", "https://openrouter.ai/api/v1", "anthropic/claude-sonnet-5"),
 }
 

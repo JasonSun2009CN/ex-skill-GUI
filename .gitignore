@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+build/
 
 # 可选的本地数据目录（默认数据保存在 ~/.ex-skill，不入库）
 .local_config/

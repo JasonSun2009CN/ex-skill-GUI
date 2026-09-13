@@ -1,0 +1,89 @@
+name: Build desktop packages
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-13
+          - platform: windows
+            os: windows-2022
+          - platform: linux
+            os: ubuntu-22.04
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Run smoke test
+        if: runner.os != 'Windows'
+        run: python smoke_test.py
+
+      - name: Build application
+        run: >-
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name ex-skill
+          --collect-all PySide6
+          --collect-all shiboken6
+          --distpath build/dist
+          --workpath build/work
+          --specpath build/spec
+          app/main.py
+
+      - name: Package application
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then platform=macos
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then platform=windows
+          else platform=linux
+          fi
+          python scripts/package.py --platform "$platform" --version "${GITHUB_REF_NAME:-dev}"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ex-skill-${{ matrix.platform }}
+          path: build/packages/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ex-skill-*
+          path: build/packages
+          merge-multiple: true
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/packages/*
