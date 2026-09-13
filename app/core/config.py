@@ -30,6 +30,8 @@ class Config:
     api_key: str = ""
     base_url: str = ""        # 留空表示该形态官方默认
     model: str = ""
+    theme_mode: str = "system"  # "system" | "light" | "dark"
+    sidebar_width: int = 240
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -41,11 +43,16 @@ class Config:
         if not api_mode and data.get("provider"):
             provider = str(data["provider"]).lower()
             api_mode = "anthropic" if provider == "anthropic" else "openai"
+        theme_mode = data.get("theme_mode", "system")
+        if theme_mode not in ("system", "light", "dark"):
+            theme_mode = "system"
         return cls(
             api_mode=api_mode if api_mode in ("openai", "anthropic") else "openai",
             api_key=str(data.get("api_key", "")),
             base_url=str(data.get("base_url", "")),
             model=str(data.get("model", "")),
+            theme_mode=theme_mode,
+            sidebar_width=int(data.get("sidebar_width", 240)),
         )
 
     def is_configured(self) -> bool:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -16,35 +17,64 @@ from PySide6.QtWidgets import (
 from ..core import config as config_mod
 from ..core.config import PROVIDER_PRESETS, Config
 from ..core.llm.client import LLMClient
+from .theme import Theme
 from .workers import run_in_thread
 
 API_MODE_LABELS = {"openai": "OpenAI 兼容（/chat/completions）", "anthropic": "Anthropic（/v1/messages）"}
 API_MODE_VALUES = {"OpenAI 兼容（/chat/completions）": "openai", "Anthropic（/v1/messages）": "anthropic"}
 
+THEME_LABELS = {"system": "跟随系统", "light": "浅色", "dark": "暗色"}
+THEME_VALUES = {"跟随系统": "system", "浅色": "light", "暗色": "dark"}
+
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, theme: Theme, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("模型设置")
+        self.theme = theme
+        self.setWindowTitle("设置")
         self.setModal(True)
-        self.resize(520, 300)
+        self.resize(520, 380)
         self.result_config: Config | None = None
         self._busy = False
 
         root = QVBoxLayout(self)
+        root.setContentsMargins(24, 24, 24, 24)
+        root.setSpacing(16)
+
+        title = QLabel("模型与界面设置")
+        title.setFont(QFont("PingFang SC", 16, QFont.Bold))
+        title.setStyleSheet(f"color: {theme.text_primary};")
+        root.addWidget(title)
 
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignRight)
+        form.setSpacing(12)
 
+        # 主题
+        self.theme_combo = QComboBox()
+        for label in THEME_VALUES:
+            self.theme_combo.addItem(label)
+
+        # 服务预设
         self.preset_combo = QComboBox()
         self.preset_combo.addItem("（自定义）", "")
         for name in PROVIDER_PRESETS:
             self.preset_combo.addItem(name, name)
         self.preset_combo.currentIndexChanged.connect(self._on_preset_changed)
 
+        # API Key + 显示/隐藏
+        key_row = QHBoxLayout()
+        key_row.setSpacing(6)
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.Password)
         self.api_key_edit.setPlaceholderText("sk-…")
+        self.toggle_key_btn = QPushButton("显示")
+        self.toggle_key_btn.setObjectName("toolButton")
+        self.toggle_key_btn.setFixedSize(48, 28)
+        self.toggle_key_btn.setCheckable(True)
+        self.toggle_key_btn.toggled.connect(self._on_toggle_key)
+        key_row.addWidget(self.api_key_edit, 1)
+        key_row.addWidget(self.toggle_key_btn)
 
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(list(API_MODE_VALUES.keys()))
@@ -55,8 +85,9 @@ class SettingsDialog(QDialog):
         self.model_edit = QLineEdit()
         self.model_edit.setPlaceholderText("如 deepseek-chat / claude-sonnet-5 / gpt-4o-mini")
 
+        form.addRow("主题", self.theme_combo)
         form.addRow("服务预设", self.preset_combo)
-        form.addRow("API Key", self.api_key_edit)
+        form.addRow("API Key", key_row)
         form.addRow("接口形态", self.mode_combo)
         form.addRow("Base URL", self.base_url_edit)
         form.addRow("模型", self.model_edit)
@@ -64,17 +95,18 @@ class SettingsDialog(QDialog):
 
         hint = QLabel("支持两类接口：OpenAI 兼容（DeepSeek/Qwen/GLM/OpenAI/OpenRouter 等）与 Anthropic。")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color:#667;font-size:11px;")
+        hint.setStyleSheet(f"color: {theme.text_muted}; font-size: 11px;")
         root.addWidget(hint)
 
         self.test_btn = QPushButton("测试连接")
         self.test_btn.clicked.connect(self._on_test)
         self._status_label = QLabel("")
         self._status_label.setWordWrap(True)
-        self._status_label.setStyleSheet("color:#667;")
+        self._status_label.setStyleSheet(f"color: {theme.text_muted};")
 
         btn_row = QHBoxLayout()
         cancel_btn = QPushButton("取消")
+        cancel_btn.setObjectName("secondaryButton")
         cancel_btn.clicked.connect(self.reject)
         save_btn = QPushButton("保存")
         save_btn.clicked.connect(self._on_save)
@@ -95,12 +127,17 @@ class SettingsDialog(QDialog):
         self.base_url_edit.setText(cfg.base_url)
         self.model_edit.setText(cfg.model)
 
+        theme_index = list(THEME_VALUES.values()).index(cfg.theme_mode) if cfg.theme_mode in THEME_VALUES.values() else 0
+        self.theme_combo.setCurrentIndex(theme_index)
+
     def _current_config(self) -> Config:
         return Config(
             api_mode=API_MODE_VALUES[self.mode_combo.currentText()],
             api_key=self.api_key_edit.text().strip(),
             base_url=self.base_url_edit.text().strip(),
             model=self.model_edit.text().strip(),
+            theme_mode=THEME_VALUES[self.theme_combo.currentText()],
+            sidebar_width=config_mod.load_config().sidebar_width,
         )
 
     def _on_preset_changed(self, _idx: int) -> None:
@@ -111,6 +148,14 @@ class SettingsDialog(QDialog):
         self.mode_combo.setCurrentIndex(0 if mode == "openai" else 1)
         self.base_url_edit.setText(base_url)
         self.model_edit.setText(model)
+
+    def _on_toggle_key(self, checked: bool) -> None:
+        if checked:
+            self.api_key_edit.setEchoMode(QLineEdit.Normal)
+            self.toggle_key_btn.setText("隐藏")
+        else:
+            self.api_key_edit.setEchoMode(QLineEdit.Password)
+            self.toggle_key_btn.setText("显示")
 
     def _on_save(self) -> None:
         cfg = self._current_config()

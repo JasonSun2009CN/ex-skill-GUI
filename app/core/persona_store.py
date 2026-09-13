@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from . import paths
-from .models import RoleMeta
+from .models import RoleMeta, now_iso
 
 
 def _read_json(path: Path) -> Any:
@@ -77,6 +76,34 @@ def delete_role(role_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# 头像
+# ---------------------------------------------------------------------------
+
+def avatar_path(role_id: str) -> Path:
+    return paths.role_dir(role_id) / "avatar.png"
+
+
+def has_avatar(role_id: str) -> bool:
+    return avatar_path(role_id).exists()
+
+
+def save_avatar(role_id: str, image_path: Path | str) -> None:
+    """复制已处理好的头像图片到角色目录。图像缩放/裁剪建议在 UI 层用 QImage 完成。"""
+    d = paths.role_dir(role_id)
+    d.mkdir(parents=True, exist_ok=True)
+    dest = avatar_path(role_id)
+    import shutil
+
+    shutil.copy2(str(image_path), dest)
+
+
+def remove_avatar(role_id: str) -> None:
+    p = avatar_path(role_id)
+    if p.exists():
+        p.unlink()
+
+
+# ---------------------------------------------------------------------------
 # 角色目录内容
 # ---------------------------------------------------------------------------
 
@@ -91,7 +118,7 @@ def create_role(meta: RoleMeta, evidence_raw: str, persona: dict | None = None) 
         _write_json(d / "persona.json", persona)
     (d / "history.jsonl").touch(exist_ok=True)
     if not meta.created_at:
-        meta.created_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        meta.created_at = now_iso()
     meta.updated_at = meta.created_at
     upsert_role(meta)
 
@@ -102,7 +129,7 @@ def save_persona(role_id: str, persona: dict) -> None:
     if meta:
         meta.persona_status = "ready"
         meta.confidence = persona.get("confidence")
-        meta.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        meta.updated_at = now_iso()
         upsert_role(meta)
 
 
@@ -126,13 +153,13 @@ def append_history(role_id: str, role: str, content: str) -> None:
     record = {
         "role": role,
         "content": content,
-        "ts": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "ts": now_iso(),
     }
     with open(p, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     meta = get_role(role_id)
     if meta:
-        meta.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        meta.updated_at = now_iso()
         upsert_role(meta)
 
 

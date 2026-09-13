@@ -57,6 +57,11 @@ class _Relay(QObject):
             self._on_progress(text)
 
 
+# 强引用集合：线程运行期间必须保住 QThread / Worker / _Relay 的 Python 对象。
+# 否则它们会被 GC 回收，worker.run 不再被调用，表现为「回调永不触发、线程空转」。
+_ACTIVE_THREADS: "set[QThread]" = set()
+
+
 def run_in_thread(
     fn: Callable[[Callable[[str], None]], Any],
     on_done: Callable[[Any], None],
@@ -66,15 +71,21 @@ def run_in_thread(
 ) -> QThread:
     """后台执行 fn(progress)；on_done/on_fail/on_progress 保证在 GUI 线程触发。
 
-    返回持有的 QThread（调用方可保存引用或直接丢弃；线程结束即自动清理）。
+    返回持有的 QThread（调用方可以直接丢弃，模块内部会保住引用直至线程结束）。
     """
     thread = QThread(parent)
     worker = Worker(fn)
     worker.moveToThread(thread)
-
     relay = _Relay(on_done, on_fail, on_progress, parent)
-    # 用对象属性保住 relay 引用，避免函数返回后被回收
+
+    # 关键：在 thread 上挂住 worker/relay；thread 又被 _ACTIVE_THREADS 强引用，
+    # 从而保证三者在整个生命周期内不被 GC。
+    thread._worker = worker  # type: ignore[attr-defined]
     thread._relay = relay  # type: ignore[attr-defined]
+    _ACTIVE_THREADS.add(thread)
+
+    def _release() -> None:
+        _ACTIVE_THREADS.discard(thread)
 
     thread.started.connect(worker.run)
     worker.progress.connect(relay.progress_slot, Qt.QueuedConnection)
@@ -84,8 +95,9 @@ def run_in_thread(
     # worker 一结束就停线程并清理（在 GUI 线程排队执行 quit/deleteLater 更稳妥）
     worker.done.connect(thread.quit, Qt.QueuedConnection)
     worker.failed.connect(thread.quit, Qt.QueuedConnection)
-    thread.finished.connect(thread.deleteLater)
+    thread.finished.connect(_release)
     thread.finished.connect(worker.deleteLater)
+    thread.finished.connect(thread.deleteLater)
 
     thread.start()
     return thread

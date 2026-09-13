@@ -1,2 +1,2 @@
-PySide6==6.11.2
+PySide6==6.8.2
 httpx>=0.27

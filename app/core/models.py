@@ -95,6 +95,7 @@ class RoleMeta:
     confidence: float | None = None
     created_at: str = ""
     updated_at: str = ""
+    avatar_path: str = ""      # 自定义头像路径，空则使用首字母彩色头像
 
     def label(self) -> str:
         return relationship_label(self.category, self.subtype)
@@ -112,6 +113,7 @@ class RoleMeta:
             "confidence": self.confidence,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "avatar_path": self.avatar_path,
         }
         return d
 
@@ -129,6 +131,7 @@ class RoleMeta:
             confidence=d.get("confidence"),
             created_at=str(d.get("created_at", "")),
             updated_at=str(d.get("updated_at", "")),
+            avatar_path=str(d.get("avatar_path", "")),
         )
 
 
