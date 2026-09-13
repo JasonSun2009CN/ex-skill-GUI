@@ -47,8 +47,17 @@ python launch.py
 
 | 形态 | 说明 | 举例 |
 |---|---|---|
-| OpenAI 兼容 | 填 Base URL + 模型名 | OpenAI、Google Gemini、xAI Grok、Mistral AI、Groq、Together AI、DeepSeek、月之暗面 Moonshot、阿里云百炼 Qwen、智谱 GLM、SiliconFlow、MiniMax、腾讯混元、OpenRouter |
+| OpenAI 兼容 | 填 Base URL + 模型名 | OpenAI、Google Gemini、xAI Grok、Mistral AI、Groq、Together AI、DeepSeek、月之暗面 Kimi、阿里云百炼 Qwen、智谱 GLM、SiliconFlow、MiniMax、腾讯混元、OpenRouter |
 | Anthropic | `/v1/messages` | Claude |
+
+选「服务预设」会自动填好接口形态、Base URL 和常用模型，下次打开设置仍是这个服务商（也可以选「自定义」手填）。
+模型名会随厂商更新换代（`moonshot-v1-8k`、`grok-3-mini` 等都已下线），所以下拉框里的清单只是常用项：
+点「获取模型列表」会向该服务商拉取当前可用的模型 ID，也可以直接手输。
+
+> **关于 temperature**：部分模型不接受自定义温度，传入会直接报 400
+> （月之暗面 Kimi 的 `invalid temperature: only 1 is allowed for this model`、
+> Claude 5 代、OpenAI 推理模型等）。对这类模型本程序会**省略**该参数、用服务端默认值；
+> 遇到没见过的模型先按报错自动去掉重试一次。
 
 ## 界面
 

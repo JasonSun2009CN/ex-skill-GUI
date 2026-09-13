@@ -50,6 +50,20 @@ def test_config() -> None:
     config.save_config(cfg)
     check("config 落盘后读取一致", config.load_config() == cfg)
 
+    # 服务预设：选了要能存住，旧配置要能按 Base URL 反查回来
+    moonshot = config.Config(api_mode="openai", api_key="sk-x", base_url="https://api.moonshot.cn/v1",
+                             model="kimi-k2.6")
+    config.save_config(moonshot)
+    check("旧配置按 Base URL 反查到预设", config.load_config().provider_preset == "moonshot")
+
+    picked = config.Config(api_mode="anthropic", api_key="sk-x", base_url="https://api.anthropic.com",
+                           model="claude-sonnet-5", provider_preset="anthropic")
+    config.save_config(picked)
+    check("已选预设原样落盘", config.load_config().provider_preset == "anthropic")
+    check("自定义 Base URL 不会误判成预设", config.infer_preset_key("https://example.com/v1") == "")
+    check("预设清单里的模型 ID 非空", all(p.default_model for p in config.PROVIDER_PRESETS))
+    check("预设 key 唯一", len({p.key for p in config.PROVIDER_PRESETS}) == len(config.PROVIDER_PRESETS))
+
     paths.ensure_layout()
     check("data_root 指向临时目录", str(paths.data_root()) == _TMP)
     check("roles 目录已建", (paths.data_root() / "roles").is_dir())
@@ -263,12 +277,96 @@ def test_pipeline_and_chat() -> None:
     check("chat: tokens_for_cap 上限夹紧", chat_session.tokens_for_cap(10000) == 800)
 
 
+def test_llm_client() -> None:
+    from app.core.llm.client import ChatMessage, LLMClient, LLMError, _rejects_temperature
+
+    print("[llm client]")
+    check("kimi-k2.6 不接受自定义 temperature", _rejects_temperature("kimi-k2.6"))
+    check("带网关前缀也认得（moonshotai/kimi-k3）", _rejects_temperature("moonshotai/kimi-k3"))
+    check("claude-sonnet-5 不接受自定义 temperature", _rejects_temperature("claude-sonnet-5"))
+    check("deepseek-chat 仍可自定义 temperature", not _rejects_temperature("deepseek-chat"))
+
+    def ok(content: str) -> dict:
+        return {"choices": [{"message": {"content": content}}]}
+
+    def cfg_for(model: str, base_url: str = "https://x.example/v1", api_mode: str = "openai") -> config.Config:
+        return config.Config(api_mode=api_mode, api_key="sk-x", base_url=base_url, model=model)
+
+    def call(cfg, respond, **kwargs):
+        """发一次 chat（_post_json 换成本地桩），返回 (回复, 每次实际发出的请求体)。"""
+        bodies: list[dict] = []
+        client = LLMClient(cfg)
+        client._post_json = lambda url, headers, body: (bodies.append(dict(body)), respond(body))[1]
+        reply = client.chat([ChatMessage("user", "你好")], **kwargs)
+        return reply, bodies
+
+    kimi = cfg_for("kimi-k2.6", "https://api.moonshot.cn/v1")
+    _reply, bodies = call(kimi, ok, temperature=0.85, max_tokens=512)
+    check("kimi：请求体里没有 temperature 字段", "temperature" not in bodies[0])
+    check("kimi：token 上限照常发送", bodies[0].get("max_tokens") == 512)
+
+    _reply, bodies2 = call(cfg_for("deepseek-chat", "https://api.deepseek.com/v1"), ok,
+                           temperature=0.85, max_tokens=512)
+    check("普通模型：temperature 照发", bodies2[0].get("temperature") == 0.85)
+
+    _reply, bodies3 = call(cfg_for("gpt-5", "https://api.openai.com/v1"), ok, temperature=0.3, max_tokens=256)
+    check("gpt-5：改用 max_completion_tokens",
+          bodies3[0].get("max_completion_tokens") == 256 and "max_tokens" not in bodies3[0])
+
+    # 服务端 400 → 自动去掉 temperature 重试，并记住结论
+    def reject_temperature(body):
+        if "temperature" in body:
+            raise LLMError('HTTP 400：{"error":{"message":"invalid temperature: only 1 is allowed for this model"}}')
+        return ok("连接成功")
+
+    unknown = cfg_for("some-new-model", "https://example.cn/v1")
+    reply, calls = call(unknown, reject_temperature, temperature=0.85, max_tokens=64)
+    check("报错后去掉 temperature 重试成功", reply == "连接成功" and len(calls) == 2)
+    check("重试的请求体里确实没有 temperature", "temperature" not in calls[1])
+
+    _reply, calls2 = call(unknown, reject_temperature, temperature=0.85, max_tokens=64)
+    check("同端点+模型第二次不再试错", len(calls2) == 1 and "temperature" not in calls2[0])
+
+    def reject_max_tokens(body):
+        if "max_tokens" in body:
+            raise LLMError("HTTP 400：Unsupported parameter: 'max_tokens' is not supported "
+                           "with this model. Use 'max_completion_tokens' instead.")
+        return ok("改成 max_completion_tokens 了")
+
+    check("max_tokens 被拒后换成 max_completion_tokens",
+          call(cfg_for("mystery-model"), reject_max_tokens)[0] == "改成 max_completion_tokens 了")
+
+    # Anthropic 形态
+    claude = LLMClient(cfg_for("claude-sonnet-5", "https://api.anthropic.com", api_mode="anthropic"))
+    captured: dict = {}
+    claude._post_json = lambda url, headers, body: (captured.update(body), {"content": [{"text": "hi"}]})[1]
+    claude._chat_anthropic([ChatMessage("system", "s"), ChatMessage("user", "u")], temperature=0.85, max_tokens=128)
+    check("Claude 5 代：不发送 temperature", "temperature" not in captured)
+    check("Anthropic：system 提到顶层", captured.get("system") == "s")
+
+    # 拉取模型列表
+    lister = LLMClient(cfg_for("m"))
+    lister._request_json = lambda method, url, headers, body=None: {
+        "data": [{"id": "b"}, {"id": "a"}, {"no_id": True}]
+    }
+    check("list_models 解析、去重并排序", lister.list_models() == ["a", "b"])
+
+    broken = LLMClient(cfg_for("m"))
+    broken._request_json = lambda method, url, headers, body=None: {"object": "list"}
+    try:
+        broken.list_models()
+        check("缺少 data 时抛可读错误", False, "没有抛异常")
+    except LLMError as e:
+        check("缺少 data 时抛可读错误", "模型列表" in str(e), str(e))
+
+
 def main() -> int:
     test_config()
     test_models()
     test_evidence()
     test_store()
     test_analyzer()
+    test_llm_client()
     test_pipeline_and_chat()
     if _failures:
         print(f"\n{len(_failures)} 项失败：")

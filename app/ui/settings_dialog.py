@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import config as config_mod
-from ..core.config import PROVIDER_PRESETS, Config
+from ..core.config import PROVIDER_PRESETS, Config, ProviderPreset, preset_by_key
 from ..core.llm.client import LLMClient
 from .theme import Theme
 from .workers import run_in_thread
@@ -33,9 +33,10 @@ class SettingsDialog(QDialog):
         self.theme = theme
         self.setWindowTitle("设置")
         self.setModal(True)
-        self.resize(520, 380)
+        self.resize(560, 420)
         self.result_config: Config | None = None
         self._busy = False
+        self._loading = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 24, 24, 24)
@@ -55,11 +56,11 @@ class SettingsDialog(QDialog):
         for label in THEME_VALUES:
             self.theme_combo.addItem(label)
 
-        # 服务预设
+        # 服务预设（itemData 存 ProviderPreset.key，写进 config 的就是它）
         self.preset_combo = QComboBox()
         self.preset_combo.addItem("（自定义）", "")
-        for name in PROVIDER_PRESETS:
-            self.preset_combo.addItem(name, name)
+        for provider in PROVIDER_PRESETS:
+            self.preset_combo.addItem(provider.label, provider.key)
         self.preset_combo.currentIndexChanged.connect(self._on_preset_changed)
 
         # API Key + 显示/隐藏
@@ -82,18 +83,29 @@ class SettingsDialog(QDialog):
         self.base_url_edit = QLineEdit()
         self.base_url_edit.setPlaceholderText("留空使用该服务默认地址")
 
-        self.model_edit = QLineEdit()
-        self.model_edit.setPlaceholderText("如 deepseek-chat / claude-sonnet-5 / gpt-4o-mini")
+        # 模型：可编辑下拉框 —— 预设给一份常用清单，也能直接手输，或点按钮按 API 拉取
+        self.model_combo = QComboBox()
+        self.model_combo.setEditable(True)
+        self.model_combo.lineEdit().setPlaceholderText("如 kimi-k2.6 / claude-sonnet-5 / gpt-4o-mini")
+        model_row = QHBoxLayout()
+        model_row.setSpacing(6)
+        model_row.addWidget(self.model_combo, 1)
+        self.fetch_btn = QPushButton("获取模型列表")
+        self.fetch_btn.setObjectName("toolButton")
+        self.fetch_btn.setFixedHeight(28)
+        self.fetch_btn.clicked.connect(self._on_fetch_models)
+        model_row.addWidget(self.fetch_btn)
 
         form.addRow("主题", self.theme_combo)
         form.addRow("服务预设", self.preset_combo)
         form.addRow("API Key", key_row)
         form.addRow("接口形态", self.mode_combo)
         form.addRow("Base URL", self.base_url_edit)
-        form.addRow("模型", self.model_edit)
+        form.addRow("模型", model_row)
         root.addLayout(form)
 
-        hint = QLabel("支持两类接口：OpenAI 兼容（DeepSeek/Qwen/GLM/OpenAI/OpenRouter 等）与 Anthropic。")
+        hint = QLabel("支持两类接口：OpenAI 兼容（DeepSeek/Qwen/GLM/OpenAI/OpenRouter 等）与 Anthropic。"
+                      "模型名会随厂商更新换代，可用「获取模型列表」向服务端拉取当前可用的模型。")
         hint.setWordWrap(True)
         hint.setStyleSheet(f"color: {theme.text_muted}; font-size: 11px;")
         root.addWidget(hint)
@@ -122,32 +134,73 @@ class SettingsDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _load(self, cfg: Config) -> None:
-        self.api_key_edit.setText(cfg.api_key)
-        self.mode_combo.setCurrentIndex(0 if cfg.api_mode == "openai" else 1)
-        self.base_url_edit.setText(cfg.base_url)
-        self.model_edit.setText(cfg.model)
+        """把已保存的配置填回控件。_loading 期间不回写预设（否则会覆盖已存的值）。"""
+        self._loading = True
+        try:
+            self.api_key_edit.setText(cfg.api_key)
+            self.mode_combo.setCurrentIndex(0 if cfg.api_mode == "openai" else 1)
+            self.base_url_edit.setText(cfg.base_url)
 
-        theme_index = list(THEME_VALUES.values()).index(cfg.theme_mode) if cfg.theme_mode in THEME_VALUES.values() else 0
-        self.theme_combo.setCurrentIndex(theme_index)
+            theme_index = list(THEME_VALUES.values()).index(cfg.theme_mode) if cfg.theme_mode in THEME_VALUES.values() else 0
+            self.theme_combo.setCurrentIndex(theme_index)
+
+            # 恢复上次选的服务商（Config.from_dict 已按 Base URL 兜底反查过）
+            index = self.preset_combo.findData(cfg.provider_preset) if cfg.provider_preset else 0
+            self.preset_combo.setCurrentIndex(index if index >= 0 else 0)
+            preset = self._preset()
+            self._fill_models(preset.models if preset else (), current=cfg.model)
+        finally:
+            self._loading = False
+
+    def _preset(self) -> ProviderPreset | None:
+        key = str(self.preset_combo.currentData() or "")
+        return preset_by_key(key) if key else None
+
+    def _fill_models(self, models, *, current: str = "") -> None:
+        """重建模型下拉框；current 命中清单就选中它，否则按手输处理。"""
+        models = list(models)
+        self.model_combo.clear()
+        for model_id, desc in models:
+            self.model_combo.addItem(f"{model_id} — {desc}" if desc else model_id, model_id)
+        if current:
+            for i in range(self.model_combo.count()):
+                if self.model_combo.itemData(i) == current:
+                    self.model_combo.setCurrentIndex(i)
+                    return
+        self.model_combo.setCurrentIndex(0 if models else -1)
+        self.model_combo.setEditText(current)
+
+    def _model_text(self) -> str:
+        """取模型 ID：下拉项取 itemData，手输的取原文。"""
+        text = self.model_combo.currentText().strip()
+        index = self.model_combo.findText(text)
+        if index >= 0:
+            data = self.model_combo.itemData(index)
+            if data:
+                return str(data)
+        return text
 
     def _current_config(self) -> Config:
         return Config(
             api_mode=API_MODE_VALUES[self.mode_combo.currentText()],
             api_key=self.api_key_edit.text().strip(),
             base_url=self.base_url_edit.text().strip(),
-            model=self.model_edit.text().strip(),
+            model=self._model_text(),
             theme_mode=THEME_VALUES[self.theme_combo.currentText()],
             sidebar_width=config_mod.load_config().sidebar_width,
+            provider_preset=str(self.preset_combo.currentData() or ""),
         )
 
     def _on_preset_changed(self, _idx: int) -> None:
-        name = self.preset_combo.currentData()
-        if not name:
+        if self._loading:
             return
-        mode, base_url, model = PROVIDER_PRESETS[name]
-        self.mode_combo.setCurrentIndex(0 if mode == "openai" else 1)
-        self.base_url_edit.setText(base_url)
-        self.model_edit.setText(model)
+        preset = self._preset()
+        if preset is None:  # 「自定义」：保留已填内容，只清掉预设给的模型清单
+            self._fill_models((), current=self._model_text())
+            return
+        self.mode_combo.setCurrentIndex(0 if preset.api_mode == "openai" else 1)
+        self.base_url_edit.setText(preset.base_url)
+        self._fill_models(preset.models, current=preset.default_model)
 
     def _on_toggle_key(self, checked: bool) -> None:
         if checked:
@@ -169,10 +222,11 @@ class SettingsDialog(QDialog):
         self.result_config = cfg
         self.accept()
 
-    def _set_busy(self, busy: bool) -> None:
+    def _set_busy(self, busy: bool, message: str = "正在测试连接…") -> None:
         self._busy = busy
         self.test_btn.setEnabled(not busy)
-        self._status_label.setText("正在测试连接…" if busy else "")
+        self.fetch_btn.setEnabled(not busy)
+        self._status_label.setText(message if busy else "")
 
     def _on_test(self) -> None:
         if self._busy:
@@ -198,6 +252,29 @@ class SettingsDialog(QDialog):
         def on_fail(err: str) -> None:
             self._set_busy(False)
             QMessageBox.warning(self, "测试连接", f"连接失败：\n{err}")
+
+        run_in_thread(task, on_done, on_fail, parent=self.window())
+
+    def _on_fetch_models(self) -> None:
+        if self._busy:
+            return
+        cfg = self._current_config()
+        if not cfg.api_key:
+            self._status_label.setText("请先填写 API Key 再获取模型列表。")
+            return
+        self._set_busy(True, "正在获取模型列表…")
+
+        def task(progress):
+            return LLMClient(cfg).list_models()
+
+        def on_done(models):
+            self._set_busy(False)
+            self._fill_models([(m, "") for m in models], current=cfg.model)
+            self._status_label.setText(f"已获取 {len(models)} 个模型，可从下拉框选择。")
+
+        def on_fail(err: str) -> None:
+            self._set_busy(False)
+            self._status_label.setText(f"获取模型列表失败：{err}")
 
         run_in_thread(task, on_done, on_fail, parent=self.window())
 
